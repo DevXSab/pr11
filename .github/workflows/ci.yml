@@ -18,15 +18,13 @@ jobs:
 
     - name: Run nginx container
       run: |
-        docker run -d --name ci-nginx \
-        -p 9889:80 ci-nginx
+        docker run -d --name ci-nginx -p 9889:80 ci-nginx
         sleep 5
 
     - name: Check HTTP code
       run: |
         CODE=$(curl -o /dev/null -s -w "%{http_code}" http://158.160.80.140:9889)
         if [ "$CODE" != "200" ]; then
-          echo "HTTP code is $CODE"
           exit 1
         fi
 
@@ -36,7 +34,6 @@ jobs:
         REMOTE_MD5=$(curl -s http://158.160.80.140:9889 | md5sum | awk '{print $1}')
 
         if [ "$LOCAL_MD5" != "$REMOTE_MD5" ]; then
-          echo "MD5 mismatch"
           exit 1
         fi
 
@@ -51,4 +48,4 @@ jobs:
       run: |
         curl -s -X POST https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage \
         -d chat_id=${{ secrets.TG_CHAT_ID }} \
-        -d text="❌ CI failed for index.html"
+        -d text="❌ CI упал. Проверь pipeline"

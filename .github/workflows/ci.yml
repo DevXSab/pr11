@@ -1,0 +1,54 @@
+name: CI nginx test
+
+on:
+  push:
+    paths:
+      - "index.html"
+
+jobs:
+  test-nginx:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Build nginx image
+      run: docker build -t ci-nginx .
+
+    - name: Run nginx container
+      run: |
+        docker run -d --name ci-nginx \
+        -p 9889:80 ci-nginx
+        sleep 5
+
+    - name: Check HTTP code
+      run: |
+        CODE=$(curl -o /dev/null -s -w "%{http_code}" http://158.160.80.140:9889)
+        if [ "$CODE" != "200" ]; then
+          echo "HTTP code is $CODE"
+          exit 1
+        fi
+
+    - name: Check md5 sum
+      run: |
+        LOCAL_MD5=$(md5sum index.html | awk '{print $1}')
+        REMOTE_MD5=$(curl -s http://158.160.80.140:9889 | md5sum | awk '{print $1}')
+
+        if [ "$LOCAL_MD5" != "$REMOTE_MD5" ]; then
+          echo "MD5 mismatch"
+          exit 1
+        fi
+
+    - name: Stop and remove container
+      if: always()
+      run: |
+        docker stop ci-nginx || true
+        docker rm ci-nginx || true
+
+    - name: Notify Telegram on failure
+      if: failure()
+      run: |
+        curl -s -X POST https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage \
+        -d chat_id=${{ secrets.TG_CHAT_ID }} \
+        -d text="❌ CI failed for index.html"
